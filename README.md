@@ -1,4 +1,4 @@
-# Distributed Recursive Production
+# Recursive Top-Down Production for Sentence Generation with Latent Trees
 
 To run:
 ```
