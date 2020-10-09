@@ -65,8 +65,6 @@ class Attention(nn.Module):
             .masked_fill(mask, scores.min())\
             .max(dim=-1, keepdim=True)[0]
         scores = scores - k
-        # logsumexp = ctreec.masked_logsumexp(scores, mask, log_eps, eps)
-        # attn = ctreec.exp_safe(scores - logsumexp, log_eps, eps, mask)
         exp_scores = torch.exp(scores - k).masked_fill(mask, 0.)
         attn = exp_scores / (exp_scores.sum(dim=-1, keepdim=True) + 1e-3)
         context = torch.matmul(attn, v_).permute(1, 0, 2)
@@ -87,9 +85,6 @@ class CopyCell(nn.Module):
             nn.Linear(self.cell_hidden_size,
                       ((branch_factor + 1) * hidden_size))
         )
-        # self.output_t = nn.Sequential(
-        #     nn.Linear(hidden_size, branch_factor * 2 * hidden_size),
-        # )
 
         self.activation = activation
         self.branch_factor = branch_factor
@@ -176,11 +171,7 @@ class Operator(nn.Module):
         )
         self.register_buffer('pos_neg', torch.tensor([1., -1.],
                                                      dtype=torch.float))
-
-        # torch.nn.init.xavier_uniform_(self.leaf_transform[1].weight)
-        # torch.nn.init.zeros_(self.leaf_transform[1].bias)
         torch.nn.init.zeros_(self.leaf_transform[-1].weight)
-        # torch.nn.init.zeros_(self.leaf_transform[-1].bias)
 
         self._output_dropout = nn.Dropout(output_dropout)
         self._output_transform = nn.Linear(self.hidden_size,
@@ -193,15 +184,10 @@ class Operator(nn.Module):
         self.int_dropout = nn.Dropout(integrate_dropout)
         if node_attention:
             self.attn = self._attn
-            # self.attn = Attention(self.hidden_size)
-            # self._integrate_attn = nn.Linear(2 * self.hidden_size,
-            #                                 2 * self.hidden_size)
         else:
             self.attn = None
 
         if output_attention:
-            #self.attn_lex = Attention(self.hidden_size,
-            #                          dropout=attn_dropout)
             self.attn_lex = self._attn
         else:
             self.attn_lex = None
@@ -211,13 +197,7 @@ class Operator(nn.Module):
                          elementwise_affine=False),
             nn.Tanh()
         )
-        # self.out_norm = nn.Tanh()
         self.log_eps = -64.
-        # self.inv_temp = nn.Parameter(torch.tensor(1.))
-
-    # def out_norm(self, x):
-    #     return self.inv_temp * (
-    #         x / (1e-6 + torch.norm(x, p=2, dim=-1, keepdim=True)))
 
     def output_transform(self, hidden, global_cond):
         if self.attn_lex is not None:
@@ -228,7 +208,6 @@ class Operator(nn.Module):
                  key_mask=global_cond[4]
             )
             emb = self._output_dropout(emb)
-            # emb = self.out_norm(hidden)
             out_emb = self.out_norm(self._output_transform.weight)
         else:
             emb = self._output_dropout(hidden)
@@ -240,14 +219,12 @@ class Operator(nn.Module):
     def log_leaves(self, hidden, context):
         logits = self.leaf_transform(
             torch.cat((hidden, context), dim=-1))
-        # logits = logits.expand(-1, -1, -1, 2) * self.pos_neg
         log_leaf = torch.log_softmax(logits, dim=-1)
         return log_leaf
 
     def init_parent(self, parent):
         prev_context = parent[None, :, :]
         prev_hidden = self.in_transform(parent)[None, :, :]
-        # prev_hidden = torch.zeros_like(prev_context)
         prev_log_leaf = self.log_leaves(
             prev_hidden[:, :, None, :],
             prev_context[:, :, None, :]
@@ -290,8 +267,6 @@ class CTreeDecoder(nn.Module):
         super(CTreeDecoder, self).__init__()
 
         self.branch_factor = 2
-        # self.activation = nn.Tanh()
-        # self.activation = nn.LayerNorm(slot_size)
         self.activation = nn.Sequential(
             nn.LayerNorm(slot_size),
             nn.Tanh(),
