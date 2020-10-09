@@ -1,0 +1,1 @@
+{"<pad>": 0, "<start>": 1, "<end>": 2, "<unk>": 3, "i_turn_right": 4, "i_jump": 5, "i_walk": 6, "i_turn_left": 7, "i_run": 8, "i_look": 9}
