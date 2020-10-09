@@ -281,13 +281,13 @@ class Operator(nn.Module):
         return (flat_branches, context, log_leaves)
 
 
-class OrderedMemoryDecoder(nn.Module):
+class CTreeDecoder(nn.Module):
     def __init__(self, ntoken, slot_size, producer_class,
                  leaf_dropout, output_dropout, integrate_dropout,
                  attn_dropout,
                  node_attention, output_attention,
                  padding_idx=10, max_depth=8):
-        super(OrderedMemoryDecoder, self).__init__()
+        super(CTreeDecoder, self).__init__()
 
         self.branch_factor = 2
         # self.activation = nn.Tanh()

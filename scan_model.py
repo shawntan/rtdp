@@ -34,7 +34,7 @@ class SCANModel(nn.Module):
             )
 
 
-        self.decoder = tree_decoder.OrderedMemoryDecoder(
+        self.decoder = tree_decoder.CTreeDecoder(
             ntoken=args.trg_ntoken,
             slot_size=args.nhid,
             producer_class=args.prod_class,

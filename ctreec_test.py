@@ -7,7 +7,7 @@ import torch
 class TestCTreeC(unittest.TestCase):
 
     def setUp(self):
-        self.omd = tree_decoder.OrderedMemoryDecoder(
+        self.omd = tree_decoder.CTreeDecoder(
             ntoken=11, slot_size=20,
             producer_class='Cell',
             max_depth=3,
