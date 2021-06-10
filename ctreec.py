@@ -45,7 +45,7 @@ def extract_label_log_probs(log_probs, labels):
 
 @torch.jit.script
 def forward_ctreec(extracted_log_probs, target_lengths,
-                   out_uniq_idx, out_uniq_inv, in_idx,
+                   out_uniq_idx, out_uniq_inv, in_idx, in_acc_mat,
                    start_idxs, end_idxs,
                    eps=torch.tensor(0.),
                    log_eps=torch.tensor(float('-inf'))):
@@ -55,7 +55,8 @@ def forward_ctreec(extracted_log_probs, target_lengths,
 
     acc = torch.zeros_like(extracted_log_probs[0, :, 0])
     prev_probs = torch.zeros_like(extracted_log_probs[0, :])
-    prev_probs[:, start_idxs] = torch.tensor(1., dtype=torch.float)
+    prev_probs[:, start_idxs] = torch.tensor(1., dtype=torch.float,
+                                             device=extracted_log_probs.device)
 
     for t in range(max_length):
         # Keeping it log-safe
@@ -68,8 +69,7 @@ def forward_ctreec(extracted_log_probs, target_lengths,
         # Compute normalisation term only over those.
         log_C = torch.logsumexp(log_outgoing, dim=-1, keepdim=True)
         # Normalise the outgoings, and then re-expand to non-unique (branch out)
-        outgoing = exp_safe(log_outgoing - log_C,
-                            log_eps, eps)[:, out_uniq_inv]
+        outgoing = exp_safe(log_outgoing - log_C, log_eps, eps)[:, out_uniq_inv]
 
         end = t + 1 == target_lengths
         if end.any():
@@ -84,11 +84,12 @@ def forward_ctreec(extracted_log_probs, target_lengths,
             mid_vals = log_C[mid_instances, 0]
             acc = acc.scatter_add(0, mid_instances, mid_vals)
             # Transition
-            prev_probs = torch.zeros_like(prev_probs)
-            prev_probs = prev_probs.index_put(
-                (batch_idx[:, None], in_idx[None, :]), outgoing,
-                accumulate=True
-            )
+            # prev_probs = torch.zeros_like(prev_probs)
+            # prev_probs.index_put_(
+            #     (batch_idx[:, None], in_idx[None, :]), outgoing,
+            #     accumulate=True
+            # )
+            prev_probs = torch.einsum('bi,ij->bj', outgoing, in_acc_mat)
     return acc
 
 
@@ -150,6 +151,10 @@ class Loss(nn.Module):
             out_idx, return_inverse=True
         )
         self.in_idx = torch.tensor([j for _, j in adj])
+        self.in_acc_mat = torch.zeros((len(adj), 2 ** (depth + 1) - 1),
+                                      dtype=torch.float)
+        self.in_acc_mat[torch.arange(len(adj), dtype=torch.long),
+                        self.in_idx] = 1.
         self.start_idxs = torch.tensor(start, dtype=torch.long)
         self.end_idxs = torch.tensor(end, dtype=torch.long)
 
@@ -160,10 +165,10 @@ class Loss(nn.Module):
                 self.register_buffer(k, v)
 
     def forward(self, log_probs, targets, target_lengths):
-        extracted = extract_label_log_probs(log_probs, targets)
+        extracted = extract_label_log_probs(log_probs, targets).contiguous()
         results = -forward_ctreec(extracted, target_lengths.long(),
                                   self.out_uniq_idx, self.out_unique_inv,
-                                  self.in_idx,
+                                  self.in_idx, self.in_acc_mat,
                                   self.start_idxs, self.end_idxs,
                                   eps=self.eps, log_eps=self.log_eps)
         return results

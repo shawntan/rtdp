@@ -281,7 +281,7 @@ class RNNEncoder(nn.Module):
 
         rnn_input = X[:, sorted_idx]
         rnn_input = nn.utils.rnn.pack_padded_sequence(
-            rnn_input, sorted_lengths
+            rnn_input, sorted_lengths.cpu()
         )
         hiddens, last = self.rnn(rnn_input)
         hiddens, _ = nn.utils.rnn.pad_packed_sequence(hiddens)
